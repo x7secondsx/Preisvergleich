@@ -4,37 +4,6 @@ import pandas as pd
 from urllib.parse import unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-
-
-api_key = st.secrets["API_KEY"]
-
-st.title("Marvins Preisvergleich")
-
-st.markdown("""
-    <style>
-    div[data-testid="stVerticalBlock"][data-test-scroll-behavior="normal"] {
-        background: #eec06b !important;
-        padding: 20px !important;
-        border-radius: 12px !important;
-        margin: 10px 0 !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 
-                    0 1px 3px rgba(0, 0, 0, 0.08) !important;
-        border: 1px solid #03071E !important;
-        transition: all 0.3s ease !important;
-    }
-    
-    div[data-testid="stVerticalBlock"][data-test-scroll-behavior="normal"]:hover {
-        transform: translateY(-5px) !important;
-        box-shadow: 0 12px 24px rgba(0, 104, 201, 0.15), 
-                    0 6px 12px rgba(0, 0, 0, 0.1) !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-form = st.form("form", border=False)
-
-title = form.text_input("Welches Spiel suchst du?", value="")
-
 endpoints = {"search": "https://api.isthereanydeal.com/games/search/v1",
              "gameinfo": "https://api.isthereanydeal.com/games/info/v2",
              "prices": "https://api.isthereanydeal.com/games/prices/v3",
@@ -44,7 +13,7 @@ endpoints = {"search": "https://api.isthereanydeal.com/games/search/v1",
 headers = {"Accept": "application/json", "User-Agent": "my-test-client/1.0"}
 
 
-def find_id_by_title(title: str, max_games=50) -> dict:
+def find_id_by_title(title: str, max_games=100) -> dict:
     url = endpoints.get("search")
     params = {"key": api_key, "title": title, "country": "DE", "results": max_games}
     resp = requests.get(url, params=params, headers=headers, timeout=15)
@@ -100,18 +69,61 @@ def get_shops(country: str = "DE") -> list:
         "key": api_key,
         "country": country
     }
-    
     resp = requests.get(url, params=params, headers=headers, timeout=15)
-
+    
     return resp.json()
 
-submit = form.form_submit_button("Los", type="primary")        
+
+api_key = st.secrets["API_KEY"]
+
+st.title("Marvins Preisvergleich")
+
+st.markdown("""
+    <style>
+    div[data-testid="stVerticalBlock"][data-test-scroll-behavior="normal"] {
+        background: #eec06b !important;
+        padding: 20px !important;
+        border-radius: 12px !important;
+        margin: 10px 0 !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 
+                    0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        border: 1px solid #03071E !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    div[data-testid="stVerticalBlock"][data-test-scroll-behavior="normal"]:hover {
+        transform: translateY(-5px) !important;
+        box-shadow: 0 12px 24px rgba(0, 104, 201, 0.15), 
+                    0 6px 12px rgba(0, 0, 0, 0.1) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+counter = 0 
+
+col1, col2 = st.columns(2)
+form = st.form("form", border=False)
+title = form.text_input("Welches Spiel suchst du?", value="")
+shops = get_shops()
+shops_dict = {}
+
+for shop in shops:
+    name = shop.get("title")
+    id = shop.get("id")
+    shops_dict[name] = id  
+
+select_shops = form.multiselect("Shops auswählen", shops_dict.keys(), default=["Steam", "GOG"])
+
+max_res = form.select_slider("Max. Ergebnisse", options=range(1,101), value=50)
+
+submit = form.form_submit_button("Los", type="primary")    
+
 if submit:
     if not title.strip():
         st.toast("Du musst einen Titel eingeben.", icon=":material/warning:")
     else:
         st.toast(f"Suche {title}...", icon=":material/search:", duration="short")
-        ids = find_id_by_title(title=title)
+        ids = find_id_by_title(title=title, max_games=max_res)
         
         # Parallel fetchen
         with ThreadPoolExecutor(max_workers=5) as executor: #max 5 Worker gleichzeitig
@@ -133,8 +145,6 @@ if submit:
                         
             all_prices = {item.get("id"): item for item in all_prices_list}
 
-            counter = 0 
-
             # Ergebnisse sammeln
             for future in as_completed(future_to_id):
                 
@@ -149,8 +159,16 @@ if submit:
                 is_game = False
                 if info.get("type") == "game":
                     is_game = True
+                
+                valid_shops = [shops_dict[shop] for shop in select_shops]
+                
+                deal_shops = []
+                for deal in deals:
+                    shop_id = deal["shop"]["id"]
+                    if shop_id in valid_shops:
+                        deal_shops.append(deal)         
 
-                if info and is_game:
+                if info and is_game and deal_shops:
                     counter += 1
                     with st.container(border=True):
                         st.subheader(info.get("title"), divider="red")
@@ -162,14 +180,14 @@ if submit:
                                 with st.container(width=400):
                                     st.warning("Kein Bild verfügbar")
                             
-                            if deals:
+                            if deal_shops:
                                 with st.expander(expanded=True, label="Beste Preise", icon=":material/euro_symbol:"):
-                                    for deal in deals[0:3]:
+                                    for deal_shop in deal_shops[0:3]:
                                         #best_deal = deals[0]  # Erster ist meist der günstigste
-                                        shop_name = deal.get("shop", {}).get("name", "Unknown")
-                                        price = deal.get("price", {}).get("amount", 0)
-                                        cut = deal.get("cut", 0)
-                                        url = deal.get("url", "")
+                                        shop_name = deal_shop.get("shop", {}).get("name", "Unknown")
+                                        price = deal_shop.get("price", {}).get("amount", 0)
+                                        cut = deal_shop.get("cut", 0)
+                                        url = deal_shop.get("url", "")
                                         if url:
                                             url = unquote(url)
                                             st.metric(
@@ -180,7 +198,9 @@ if submit:
                                             if url:
                                                 st.link_button("Zum Angebot", url, type="primary")
                                         else:
-                                            st.warning("Keine Deals")
+                                            st.warning("Keine Deals in den ausgewählten Shops :(")
+                            else:
+                                st.warning("Keine Deals in den ausgewählten Shops :(")
 
                         with col2:
                             if info.get("releasedate") != None:
@@ -229,9 +249,10 @@ if submit:
                                             st.empty()
                                 else:
                                     st.badge("Keine Reviews", color="gray")
-
+            if counter < 1:
+                   st.warning("Keine Deals in den ausgewählten Shops gefunden")
     if counter == 1:
         st.toast(f"{counter} Spiel gefunden!", duration="short")
-    else:
+    elif counter > 1:
         st.toast(f"{counter} Spiele gefunden!", duration="short") 
 
