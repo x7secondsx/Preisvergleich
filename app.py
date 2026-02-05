@@ -2,13 +2,11 @@ import streamlit as st
 import requests
 import pandas as pd
 from urllib.parse import unquote
-from dotenv import load_dotenv
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-load_dotenv()
 
-api_key = os.getenv("API_KEY")      
+
+api_key = st.secrets["API_KEY"]
 
 st.title("Marvins Preisvergleich")
 
