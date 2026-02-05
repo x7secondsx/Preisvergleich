@@ -227,5 +227,5 @@ if submit:
                                             st.empty()
                                 else:
                                     st.badge("Keine Reviews", color="gray")
-            st.toast(f"{len(ids)} Spiele gefunden!", icon=":material/check:")
+
     
