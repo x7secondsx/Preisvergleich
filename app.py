@@ -101,26 +101,53 @@ st.markdown("""
 
 counter = 0 
 
-col1, col2 = st.columns(2)
-form = st.form("form", border=False)
-title = form.text_input("Welches Spiel suchst du?", value="")
+if 'selected_shops' not in st.session_state:
+    st.session_state.selected_shops = ["Steam", "GOG"]
+
+# Shops Dict erstellen
 shops = get_shops()
 shops_dict = {}
-
 for shop in shops:
     name = shop.get("title")
     id = shop.get("id")
-    shops_dict[name] = id  
+    shops_dict[name] = id
 
-select_shops = form.multiselect("Shops auswählen", shops_dict.keys(), default=["Steam", "GOG"])
+# Form
+form = st.form("form", border=False)
+title = form.text_input("Welches Spiel suchst du?", value="")
+
+select_shops = form.multiselect(
+    "Shops auswählen", 
+    options=shops_dict.keys(),
+    default=st.session_state.selected_shops
+)
+all_shops_btn = form.form_submit_button("Alle Shops auswählen")
+remove_all_shops_btn = form.form_submit_button("Alle Shops entfernen")
+default_btn = form.form_submit_button("Auf Default zurücksetzen")
 
 max_res = form.select_slider("Max. Ergebnisse", options=range(1,101), value=50)
 
-submit = form.form_submit_button("Los", type="primary")    
+submit = form.form_submit_button("Los", type="primary")
+
+
+# Buttons prüfen
+if all_shops_btn:
+    st.session_state.selected_shops = list(shops_dict.keys())
+    st.rerun()
+
+if remove_all_shops_btn:
+    st.session_state.selected_shops = None
+    st.rerun()
+
+if default_btn:
+    st.session_state.selected_shops = ["Steam", "GOG"]
+    st.rerun()
 
 if submit:
     if not title.strip():
         st.toast("Du musst einen Titel eingeben.", icon=":material/warning:")
+    elif not select_shops:
+        st.toast("Du musst mind. einen Shop auswählen", icon=":material/warning:")
     else:
         st.toast(f"Suche {title}...", icon=":material/search:", duration="short")
         ids = find_id_by_title(title=title, max_games=max_res)
