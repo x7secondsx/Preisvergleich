@@ -19,7 +19,7 @@ st.markdown("""
         margin: 10px 0 !important;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 
                     0 1px 3px rgba(0, 0, 0, 0.08) !important;
-        border: 1px solid #e0e0e0 !important;
+        border: 1px solid #03071E !important;
         transition: all 0.3s ease !important;
     }
     
@@ -153,7 +153,7 @@ if submit:
                 if info and is_game:
                     counter += 1
                     with st.container(border=True):
-                        st.subheader(info.get("title"), divider="yellow")
+                        st.subheader(info.get("title"), divider="red")
                         col1, col2 = st.columns(2)
                         with col1:
                             if info.get("image") != None:
@@ -200,7 +200,7 @@ if submit:
                                     tags = info.get("tags") 
                                     if tags:
                                         for tag in tags:
-                                            st.badge(tag, color="orange")
+                                            st.badge(tag, color="red")
                                     else:
                                         st.badge("keine Reviews", color="gray")
                             else: 
@@ -230,4 +230,8 @@ if submit:
                                 else:
                                     st.badge("Keine Reviews", color="gray")
 
-    st.toast(f"{counter} Spiele gefunden!")
+    if counter == 1:
+        st.toast(f"{counter} Spiel gefunden!", duration="short")
+    else:
+        st.toast(f"{counter} Spiele gefunden!", duration="short") 
+
