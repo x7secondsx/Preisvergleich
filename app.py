@@ -110,7 +110,7 @@ if submit:
     if not title.strip():
         st.toast("Du musst einen Titel eingeben.", icon=":material/warning:")
     else:
-        st.toast(f"Suche {title}...", icon=":material/search:")
+        st.toast(f"Suche {title}...", icon=":material/search:", duration="short")
         ids = find_id_by_title(title=title)
         
         # Parallel fetchen
