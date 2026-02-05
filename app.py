@@ -133,7 +133,8 @@ if submit:
                         
             all_prices = {item.get("id"): item for item in all_prices_list}
 
-            
+            counter = 0 
+
             # Ergebnisse sammeln
             for future in as_completed(future_to_id):
                 
@@ -150,6 +151,7 @@ if submit:
                     is_game = True
 
                 if info and is_game:
+                    counter += 1
                     with st.container(border=True):
                         st.subheader(info.get("title"), divider="yellow")
                         col1, col2 = st.columns(2)
@@ -228,4 +230,4 @@ if submit:
                                 else:
                                     st.badge("Keine Reviews", color="gray")
 
-    
+    st.toast(f"{counter} Spiele gefunden!")
