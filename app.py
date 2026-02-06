@@ -1,13 +1,17 @@
 import streamlit as st
 import requests
 import pandas as pd
+import random
 from urllib.parse import unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 endpoints = {"search": "https://api.isthereanydeal.com/games/search/v1",
              "gameinfo": "https://api.isthereanydeal.com/games/info/v2",
              "prices": "https://api.isthereanydeal.com/games/prices/v3",
-             "price_overview": "https://api.isthereanydeal.com/games/overview/v2"
+             "price_overview": "https://api.isthereanydeal.com/games/overview/v2",
+             "game_lookup": "https://api.isthereanydeal.com/games/lookup/v1",
+             "mostplayed": "https://api.steampowered.com/ISteamChartsService/GetMostPlayedGames/v1/"
              }
 
 headers = {"Accept": "application/json", "User-Agent": "my-test-client/1.0"}
@@ -29,6 +33,36 @@ def find_id_by_title(title: str, max_games=100) -> dict:
         return results
     else:
         return [] 
+    
+def get_random_game_title():
+    st.session_state.random_game = None
+    while True:
+        most_played_ids = get_most_played_games()
+        random_appid = random.choice(most_played_ids)
+        url = endpoints.get("game_lookup")
+        params = {"key": api_key, "appid": random_appid}
+        resp = requests.get(url=url,params=params, headers=headers, timeout=15)
+        if resp.status_code == 200:
+            resp = resp.json()
+
+            game = resp.get("game")
+            if game:
+                st.session_state.random_game = game.get("title")
+                return game.get("title")
+                
+
+def get_most_played_games():
+    url = endpoints.get("mostplayed")
+    resp = requests.get(url=url, headers=headers)
+    if resp.status_code == 200:
+        resp = resp.json()
+        resp = resp.get("response")
+        ranks = (resp.get("ranks"))
+        appids = []
+        for rank in ranks:
+            appid = rank.get("appid")
+            appids.append(appid)
+        return appids
     
 def get_game_info(id:str) -> dict:
     url = endpoints.get("gameinfo")
@@ -76,7 +110,8 @@ def get_shops(country: str = "DE") -> list:
 
 api_key = st.secrets["API_KEY"]
 
-st.title("Marvins Preisvergleich")
+st.title("Hi!")
+st.markdown("Gib den **Namen** eines Spiels ein und finde den <ins>günstigsten</ins> Preis.",unsafe_allow_html=True )
 
 st.markdown("""
     <style>
@@ -104,6 +139,9 @@ counter = 0
 if 'selected_shops' not in st.session_state:
     st.session_state.selected_shops = ["Steam", "GOG"]
 
+if "random_game" not in st.session_state:
+    st.session_state.random_game = get_random_game_title()
+
 # Shops Dict erstellen
 shops = get_shops()
 shops_dict = {}
@@ -112,23 +150,32 @@ for shop in shops:
     id = shop.get("id")
     shops_dict[name] = id
 
-# Form
-form = st.form("form", border=False)
-title = form.text_input("Welches Spiel suchst du?", value="")
+col1, col2 = st.columns([9,1])
+with col1:
+    title = st.text_input("Welches Spiel suchst du?", value=st.session_state.random_game, label_visibility="collapsed")
+with col2:
+    randomizer_button = st.button("", on_click=get_random_game_title, icon=":material/autorenew:", width="stretch")    
 
-select_shops = form.multiselect(
-    "Shops auswählen", 
-    options=shops_dict.keys(),
-    default=st.session_state.selected_shops
-)
-all_shops_btn = form.form_submit_button("Alle Shops auswählen")
-remove_all_shops_btn = form.form_submit_button("Alle Shops entfernen")
-default_btn = form.form_submit_button("Auf Default zurücksetzen")
+with st.expander("Einstellungen", expanded=False):
+    col1, col2 = st.columns(2, border=True)
+    with col1:
+        st.subheader("Nach Shops filtern")
+        
+        select_shops = st.multiselect(
+            "Shops auswählen", 
+            options=shops_dict.keys(),
+            default=st.session_state.selected_shops
+        )
+        with st.container(horizontal=True):
+            all_shops_btn = st.button("Alle Shops auswählen")
+            remove_all_shops_btn = st.button("Alle Shops entfernen")
+            default_btn = st.button("Auf Default zurücksetzen")
+    with col2:
+        st.subheader("nach Publisher filtern")
 
-max_res = form.select_slider("Max. Ergebnisse", options=range(1,101), value=50)
+    max_res = st.select_slider("Max. Ergebnisse", options=range(1,101), value=50)
 
-submit = form.form_submit_button("Los", type="primary")
-
+submit = st.button("Los", type="primary")
 
 # Buttons prüfen
 if all_shops_btn:
@@ -282,4 +329,7 @@ if submit:
         st.toast(f"{counter} Spiel gefunden!", duration="short")
     elif counter > 1:
         st.toast(f"{counter} Spiele gefunden!", duration="short") 
+st.markdown("""
+            <small> powered by <a href="http://www.isthereanydeal.com">isthereanydeal.com</a> 
+            </small>""", unsafe_allow_html=True)
 
