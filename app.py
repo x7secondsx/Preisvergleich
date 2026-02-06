@@ -320,7 +320,7 @@ if submit:
                                             except:
                                                 st.badge("/")
                                         with col3:
-                                            st.empty()
+                                            st.write("")
                                 else:
                                     st.badge("Keine Reviews", color="gray")
             if counter < 1:
