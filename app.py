@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import random
+from datetime import datetime
 from urllib.parse import unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -11,12 +12,12 @@ endpoints = {"search": "https://api.isthereanydeal.com/games/search/v1",
              "prices": "https://api.isthereanydeal.com/games/prices/v3",
              "price_overview": "https://api.isthereanydeal.com/games/overview/v2",
              "game_lookup": "https://api.isthereanydeal.com/games/lookup/v1",
-             "mostplayed": "https://api.steampowered.com/ISteamChartsService/GetMostPlayedGames/v1/"
-             }
+             "mostplayed": "https://api.steampowered.com/ISteamChartsService/GetMostPlayedGames/v1/",
+             "more_info": "https://store.steampowered.com/api/appdetails"}
 
 headers = {"Accept": "application/json", "User-Agent": "my-test-client/1.0"}
 
-
+@st.cache_data(ttl=3600)  
 def find_id_by_title(title: str, max_games=100) -> dict:
     url = endpoints.get("search")
     params = {"key": api_key, "title": title, "country": "DE", "results": max_games}
@@ -33,7 +34,8 @@ def find_id_by_title(title: str, max_games=100) -> dict:
         return results
     else:
         return [] 
-    
+
+@st.cache_data(ttl=3600)      
 def get_random_game_title():
     
     if "random_game" not in st.session_state:
@@ -53,6 +55,7 @@ def get_random_game_title():
                 st.session_state.random_game = game.get("title")
                 return game.get("title")         
 
+@st.cache_data(ttl=3600)  
 def get_most_played_games():
     url = endpoints.get("mostplayed")
     resp = requests.get(url=url, headers=headers)
@@ -65,7 +68,8 @@ def get_most_played_games():
             appid = rank.get("appid")
             appids.append(appid)
         return appids
-    
+
+@st.cache_data(ttl=3600)      
 def get_game_info(id:str) -> dict:
     url = endpoints.get("gameinfo")
     params = {"key": api_key, "id": id} 
@@ -81,23 +85,45 @@ def get_game_info(id:str) -> dict:
             "developers": game.get("developers"),
             "tags": game.get("tags"),
             "reviews": game.get("reviews"),
-            "type": game.get("type")
+            "type": game.get("type"),
+            "appid": game.get("appid")
         }
         
         return result
 
+@st.cache_data(ttl=3600)    
+def get_more_info(appid):
+    url = endpoints.get("more_info")
+    params = {"appids": appid, "cc": "DE", "l": "german"}    
+    resp = requests.get(url=url, headers=headers, params=params, timeout=15)
+    if resp.status_code == 200:
+        resp = resp.json()
+        resp = resp.get(str(appid), {})
+        data = resp.get("data", {})
+        description = data.get("short_description", "Keine Beschreibung verfügbar")
+        description = f"<small>{description}</small>"
+        sysreq_min = data.get("pc_requirements", {}).get("minimum", "Keine Systemanforderungen verfügbar")
+        sysreq_rec = data.get("pc_requirements", {}).get("recommended", "Keine Systemanforderungen verfügbar")
+        sysreq = f"<small>{sysreq_min}\n\n{sysreq_rec}</small>"
+        platforms = data.get("platforms", {})
+        return description, sysreq, platforms
+
+
+@st.cache_data(ttl=3600)  
 def get_prices(ids: list) -> dict:
     url = endpoints.get("prices")
     params = {"key": api_key, "country": "DE"}
     resp = requests.post(url=url,params=params, headers=headers, json=ids, timeout=15)
     return resp.json()
 
+@st.cache_data(ttl=3600)  
 def get_price_overview(ids: list) -> dict:
     url = endpoints.get("price_overview")
     params = {"key": api_key, "country": "DE"}
     resp = requests.post(url=url,params=params, headers=headers, json=ids, timeout=15)
     return resp.json()
 
+@st.cache_data(ttl=3600)  
 def get_shops(country: str = "DE") -> list:
     """Holt alle verfügbaren Shops für ein Land"""
     url = "https://api.isthereanydeal.com/service/shops/v1"
@@ -108,6 +134,7 @@ def get_shops(country: str = "DE") -> list:
     resp = requests.get(url, params=params, headers=headers, timeout=15)
     
     return resp.json()
+
 
 def filter_deals_by_shops(deals, selected_shops, shops_dict):
     """Filtert Deals nach ausgewählten Shops"""
@@ -199,11 +226,11 @@ def display_best_deals(deal_shops):
                 st.link_button("Zum Angebot", url, type="primary")
 
 def display_game_metadata(info):
-    """Zeigt Release, Publisher, Tags"""
+    """Zeigt Release, Publisher, Tags, Beschreibungstext"""
     # Release Date
     release = info.get("releasedate")
     if release:
-        st.metric("Release", value=release)
+        st.metric("Release", value=datetime.strptime(release, "%Y-%m-%d").strftime("%d.%m.%Y"))
     else:
         st.caption("Release: unbekannt")
     
@@ -213,36 +240,55 @@ def display_game_metadata(info):
         st.metric("Publisher", value=publishers[0].get("name"))
     else:
         st.caption("Publisher: unbekannt")
+    
+    # Mehr Infos (Beschreibung, Systemanforderungen, Plattformen)
+    appid = info.get("appid")
+    if appid:
+        #st.caption(f"AppID: {appid}")
+        desc, sysreq, platforms = get_more_info(appid)
+        with st.expander("Beschreibung", expanded=False):
+            st.markdown(desc, unsafe_allow_html=True)
+        with st.expander("Systemanforderungen", expanded=False):
+            st.markdown(f"{sysreq}", unsafe_allow_html=True)
+        with st.expander("Plattformen", expanded=False):
+            # Badges für Plattformen in einer Zeile
+            with st.container(horizontal=True):
+                if platforms.get("windows"):
+                    st.badge("Windows", color="blue")
+                if platforms.get("mac"):
+                    st.badge("Mac", color="gray")
+                if platforms.get("linux"):
+                    st.badge("Linux", color="green")                          
 
 def display_tags(tags):
     """Zeigt Tags als Badges"""
-    st.markdown("<sub>Tags</sub>", unsafe_allow_html=True)
-    with st.container(horizontal=True):
-        if tags:
-            for tag in tags:
-                st.badge(tag, color="red")
-        else:
-            st.badge("keine Reviews", color="gray")
+    with st.expander("Tags", expanded=False):
+        with st.container(horizontal=True):
+            if tags:
+                for tag in tags:
+                    st.badge(tag, color="red")
+            else:
+                st.badge("keine Reviews", color="gray")
 
 def display_reviews(reviews):
     """Zeigt Review-Scores"""
-    st.markdown("<sub>Reviews</sub>", unsafe_allow_html=True)
-    
-    if not reviews:
-        st.badge("Keine Reviews", color="gray")
-        return
-    
-    for review in reviews:
-        score = review.get("score")
-        source = str(review.get("source"))
+    with st.expander("Reviews", expanded=False):
         
-        col1, col2, col3 = st.columns([3, 2, 5])
-        with col1:
-            st.caption(source)
-        with col2:
-            _display_score_badge(score)
-        with col3:
-            st.empty()
+        if not reviews:
+            st.badge("Keine Reviews", color="gray")
+            return
+        
+        for review in reviews:
+            score = review.get("score")
+            source = str(review.get("source"))
+            
+            col1, col2, col3 = st.columns([3, 2, 5])
+            with col1:
+                st.caption(source)
+            with col2:
+                _display_score_badge(score)
+            with col3:
+                st.empty()
 
 def _display_score_badge(score):
     """Helper für Score-Badge-Farbe"""
@@ -258,7 +304,7 @@ def _display_score_badge(score):
 
 def display_game_card(info, deal_shops):
     """Zeigt eine komplette Spielkarte"""
-    with st.container(border=True):
+    with st.container(border=True, width="content", horizontal=False):
         st.subheader(f"{st.session_state.counter}. {info.get("title")}", divider="red",)
         
         col1, col2 = st.columns(2)
@@ -331,7 +377,7 @@ with st.expander("Einstellungen", expanded=False):
     with col2:
         st.subheader("nach Publisher filtern")
 
-    max_res = st.select_slider("Max. Ergebnisse", options=range(1,101), value=50)
+    max_res = st.select_slider("Max. Ergebnisse", options=range(1,31), value=30)
 
 col1, col2 = st.columns([2,8])
 with col1:
