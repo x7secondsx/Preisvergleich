@@ -304,7 +304,7 @@ def _display_score_badge(score):
 
 def display_game_card(info, deal_shops):
     """Zeigt eine komplette Spielkarte"""
-    with st.container(border=True, width="content", horizontal=False):
+    with st.container(border=True, width="stretch", horizontal=False):
         st.subheader(f"{st.session_state.counter}. {info.get("title")}", divider="red",)
         
         col1, col2 = st.columns(2)
