@@ -35,7 +35,6 @@ def find_id_by_title(title: str, max_games=100) -> dict:
     else:
         return [] 
 
-@st.cache_data(ttl=3600)      
 def get_random_game_title():
     
     if "random_game" not in st.session_state:
@@ -227,29 +226,28 @@ def display_best_deals(deal_shops):
 
 def display_game_metadata(info):
     """Zeigt Release, Publisher, Tags, Beschreibungstext"""
-    # Release Date
-    release = info.get("releasedate")
-    if release:
-        st.metric("Release", value=datetime.strptime(release, "%Y-%m-%d").strftime("%d.%m.%Y"))
-    else:
-        st.caption("Release: unbekannt")
-    
-    # Publisher
-    publishers = info.get("publishers")
-    if publishers:
-        st.metric("Publisher", value=publishers[0].get("name"))
-    else:
-        st.caption("Publisher: unbekannt")
-    
+
     # Mehr Infos (Beschreibung, Systemanforderungen, Plattformen)
     appid = info.get("appid")
     if appid:
         #st.caption(f"AppID: {appid}")
         desc, sysreq, platforms = get_more_info(appid)
-        with st.expander("Beschreibung", expanded=False):
+        with st.expander("Beschreibung", expanded=True):
             st.markdown(desc, unsafe_allow_html=True)
+
+        with st.expander("Tags", expanded=True):
+            if info.get("tags"):
+                display_tags(info.get("tags"))
+            else:
+                st.caption("keine Tags")
+
+        with st.expander("Reviews", expanded=True):
+            if info.get("reviews"):
+                display_reviews(info.get("reviews"))
+
         with st.expander("Systemanforderungen", expanded=False):
             st.markdown(f"{sysreq}", unsafe_allow_html=True)
+
         with st.expander("Plattformen", expanded=False):
             # Badges für Plattformen in einer Zeile
             with st.container(horizontal=True):
@@ -258,37 +256,52 @@ def display_game_metadata(info):
                 if platforms.get("mac"):
                     st.badge("Mac", color="gray")
                 if platforms.get("linux"):
-                    st.badge("Linux", color="green")                          
+                    st.badge("Linux", color="green")  
+
+    # Release Date
+    release = info.get("releasedate")
+    if release:
+        with st.expander("Releasedatum", expanded=False):
+            st.badge(f"{datetime.strptime(release, "%Y-%m-%d").strftime("%d.%m.%Y")}", color="red")
+    else:
+        st.caption("Release: unbekannt")
+    
+    # Publisher
+    publishers = info.get("publishers")
+    with st.expander("Publisher", expanded=False):
+        if publishers:
+            st.badge(f"{publishers[0].get("name")}", color="red")
+        else:
+            st.caption("Publisher: unbekannt")
+    
+                        
 
 def display_tags(tags):
     """Zeigt Tags als Badges"""
-    with st.expander("Tags", expanded=False):
-        with st.container(horizontal=True):
-            if tags:
-                for tag in tags:
-                    st.badge(tag, color="red")
-            else:
-                st.badge("keine Reviews", color="gray")
+    with st.container(horizontal=True):
+        if tags:
+            for tag in tags:
+                st.badge(tag, color="red")
+        else:
+            st.badge("keine Reviews", color="gray")
 
 def display_reviews(reviews):
-    """Zeigt Review-Scores"""
-    with st.expander("Reviews", expanded=False):
+    """Zeigt Review-Scores""" 
+    if not reviews:
+        st.badge("Keine Reviews", color="gray")
+        return
+    
+    for review in reviews:
+        score = review.get("score")
+        source = str(review.get("source"))
         
-        if not reviews:
-            st.badge("Keine Reviews", color="gray")
-            return
-        
-        for review in reviews:
-            score = review.get("score")
-            source = str(review.get("source"))
-            
-            col1, col2, col3 = st.columns([3, 2, 5])
-            with col1:
-                st.caption(source)
-            with col2:
-                _display_score_badge(score)
-            with col3:
-                st.empty()
+        col1, col2, col3 = st.columns([3, 2, 5])
+        with col1:
+            st.caption(source)
+        with col2:
+            _display_score_badge(score)
+        with col3:
+            st.empty()
 
 def _display_score_badge(score):
     """Helper für Score-Badge-Farbe"""
@@ -315,14 +328,7 @@ def display_game_card(info, deal_shops):
         
         with col2:
             display_game_metadata(info)
-            
-            if info.get("tags"):
-                display_tags(info.get("tags"))
-            else:
-                st.caption("keine Tags")
-            
-            if info.get("reviews"):
-                display_reviews(info.get("reviews"))
+
 
 def get_secrets():
     try:
