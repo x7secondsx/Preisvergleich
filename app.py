@@ -101,8 +101,12 @@ def get_more_info(appid):
         data = resp.get("data", {})
         description = data.get("short_description", "Keine Beschreibung verfügbar")
         description = f"<small>{description}</small>"
-        sysreq_min = data.get("pc_requirements", {}).get("minimum", "Keine Systemanforderungen verfügbar")
-        sysreq_rec = data.get("pc_requirements", {}).get("recommended", "Keine Systemanforderungen verfügbar")
+        try:
+            sysreq_min = data.get("pc_requirements", {}).get("minimum", "Keine Systemanforderungen verfügbar")
+            sysreq_rec = data.get("pc_requirements", {}).get("recommended", "Keine Systemanforderungen verfügbar")
+        except:
+            sysreq_min = "keine min. Systemanforderungen verfügbar"
+            sysreq_rec = "keine empfohlenen Systemanforderungen verfügbar"
         sysreq = f"<small>{sysreq_min}\n\n{sysreq_rec}</small>"
         platforms = data.get("platforms", {})
         return description, sysreq, platforms
@@ -133,7 +137,6 @@ def get_shops(country: str = "DE") -> list:
     resp = requests.get(url, params=params, headers=headers, timeout=15)
     
     return resp.json()
-
 
 def filter_deals_by_shops(deals, selected_shops, shops_dict):
     """Filtert Deals nach ausgewählten Shops"""
@@ -273,9 +276,7 @@ def display_game_metadata(info):
             st.badge(f"{publishers[0].get("name")}", color="red")
         else:
             st.caption("Publisher: unbekannt")
-    
-                        
-
+                       
 def display_tags(tags):
     """Zeigt Tags als Badges"""
     with st.container(horizontal=True):
@@ -313,7 +314,7 @@ def _display_score_badge(score):
         else:
             st.badge(str(score), color="green")
     except:
-        st.badge("/")
+        st.badge("/")   
 
 def display_game_card(info, deal_shops):
     """Zeigt eine komplette Spielkarte"""
@@ -328,7 +329,6 @@ def display_game_card(info, deal_shops):
         
         with col2:
             display_game_metadata(info)
-
 
 def get_secrets():
     try:
@@ -447,7 +447,7 @@ if submit:
                     price_data = all_prices.get(game_id, {})
                     
                     deals = price_data.get("deals", [])
-                    
+                  
                     info = future.result()
                     reviews = info.get("reviews", [])
                     image = info.get("image")
@@ -456,10 +456,12 @@ if submit:
                     is_game = is_valid_game(info)
                     
                     # Shops filtern
-                    deal_shops = filter_deals_by_shops(deals, st.session_state.selected_shops, shops_dict)         
+                    deal_shops = filter_deals_by_shops(deals, st.session_state.selected_shops, shops_dict)  
 
                     if is_game and deal_shops:
+
                         st.session_state.counter += 1
+                        
                         display_game_card(info, deal_shops)
 
 st.markdown("""
